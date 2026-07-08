@@ -1,10 +1,13 @@
 pipeline {
 
     agent any
+    triggers {
+        pollSCM('H/2 * * * *')
+    }
 
     environment {
         BITBUCKET_REPO = 'https://msaimohan8@bitbucket.org/saimohanproject/second.git'
-        GITHUB_REPO = 'github.com/saimohan8/bit_git_sync-.git'
+        GITHUB_REPO = 'https://github.com/saimohan8/bit_git_sync-.git'
         GITHUB_CREDENTIALS = 'github-token'
     }
 
@@ -26,14 +29,11 @@ pipeline {
                     sh '''
                         echo "===== Cloning Bitbucket Repository ====="
 
-                        # Insert token into the Bitbucket URL
-                        CLONE_URL=$(echo ${BITBUCKET_REPO} | sed "s#https://msaimohan8@#https://x-token-auth:${BITBUCKET_TOKEN}@#")
+                        CLONE_URL=$(echo "$BITBUCKET_REPO" | sed "s#https://msaimohan8@#https://x-token-auth:${BITBUCKET_TOKEN}@#")
 
-                        echo "Cloning Repository..."
+                        git clone "$CLONE_URL"
 
-                        git clone --mirror "$CLONE_URL"
-
-                        echo "Clone Completed Successfully"
+                        echo "===== Clone Successful ====="
                     '''
                 }
             }
@@ -41,24 +41,24 @@ pipeline {
 
         stage('Verify Repository') {
             steps {
-
                 sh '''
-                    cd second.git
+                    cd second
 
-                    echo "===== Branches ====="
-                    git branch -a
+                    echo "===== Local Branches ====="
+                    git branch
+
+                    echo "===== Remote Branches ====="
+                    git branch -r
 
                     echo "===== Tags ====="
                     git tag
 
-                    echo "===== Remotes ====="
                     git remote -v
                 '''
             }
         }
 
-        stage('Push to GitHub') {
-
+        stage('Sync All Branches to GitHub') {
             steps {
 
                 withCredentials([
@@ -70,13 +70,30 @@ pipeline {
                 ]) {
 
                     sh '''
-                        cd second.git
+                        cd second
 
-                        git remote add github https://${GITHUB_USER}:${GITHUB_TOKEN}@${GITHUB_REPO}
+                        git remote remove github || true
 
-                        echo "Pushing All Branches..."
+                        git remote add github https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/saimohan8/bit_git_sync-.git
 
-                        git push --mirror github
+                        git fetch origin
+
+                        git branch -r | grep "origin/" | grep -v "HEAD" | while read remote
+                        do
+                            branch=$(echo "$remote" | sed 's#origin/##' | xargs)
+
+                            echo "======================================"
+                            echo "Syncing Branch : $branch"
+                            echo "======================================"
+
+                            git checkout -B "$branch" "origin/$branch"
+
+                            git push github "$branch" --force
+                        done
+
+                        echo "===== Pushing Tags ====="
+
+                        git push github --tags --force
                     '''
                 }
             }
@@ -86,11 +103,15 @@ pipeline {
     post {
 
         success {
-            echo 'Repository Successfully Migrated.'
+            echo "======================================"
+            echo "Bitbucket Successfully Synced to GitHub"
+            echo "======================================"
         }
 
         failure {
-            echo 'Repository Migration Failed.'
+            echo "======================================"
+            echo "Synchronization Failed"
+            echo "======================================"
         }
 
         always {
