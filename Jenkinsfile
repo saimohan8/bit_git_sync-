@@ -7,7 +7,7 @@ pipeline {
 
     environment {
         BITBUCKET_REPO = 'https://msaimohan8@bitbucket.org/saimohanproject/second.git'
-        GITHUB_REPO = 'https://github.com/saimohan8/bit_git_sync-.git'
+        GITHUB_REPO = 'https://github.com/saimohan8/firstone.git'
         GITHUB_CREDENTIALS = 'github-token'
     }
 
